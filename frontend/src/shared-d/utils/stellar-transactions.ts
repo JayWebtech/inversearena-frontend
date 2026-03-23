@@ -1,11 +1,9 @@
 import {
   Account,
-  Address,
   BASE_FEE,
   Contract,
   TimeoutInfinite,
   TransactionBuilder,
-  nativeToScVal,
   xdr,
 } from "@stellar/stellar-sdk";
 import { Server } from "@stellar/stellar-sdk/rpc";
@@ -31,6 +29,12 @@ import {
   ContractErrorCode,
   parseContractError,
 } from "@/shared-d/utils/contract-error";
+import {
+  encodeAddress,
+  encodeAmount,
+  encodeChoice,
+  encodeRound,
+} from "@/shared-d/utils/scval-helpers";
 
 // Re-export so consumers can import from one place
 export { ContractError, ContractErrorCode, parseContractError } from "@/shared-d/utils/contract-error";
@@ -105,22 +109,20 @@ export async function buildCreatePoolTransaction(
       Math.floor(validatedParams.stakeAmount * 10_000_000),
     );
 
+    const currencyContractId =
+      validatedParams.currency === "USDC" ? USDC_CONTRACT_ID : XLM_CONTRACT_ID;
+    const roundSpeedSeconds =
+      validatedParams.roundSpeed === "30S"
+        ? 30
+        : validatedParams.roundSpeed === "1M"
+          ? 60
+          : 300;
+
     const args = [
-      nativeToScVal(amountBigInt, { type: "i128" }),
-      new Contract(
-        validatedParams.currency === "USDC" ? USDC_CONTRACT_ID : XLM_CONTRACT_ID,
-      )
-        .address()
-        .toScVal(),
-      nativeToScVal(
-        validatedParams.roundSpeed === "30S"
-          ? 30
-          : validatedParams.roundSpeed === "1M"
-            ? 60
-            : 300,
-        { type: "u32" },
-      ),
-      nativeToScVal(validatedParams.arenaCapacity, { type: "u32" }),
+      encodeAmount(amountBigInt),
+      encodeAddress(currencyContractId),
+      encodeRound(roundSpeedSeconds),
+      encodeRound(validatedParams.arenaCapacity),
     ];
 
     const callOperation = factory.call("create_pool", ...args);
@@ -168,12 +170,11 @@ export async function buildStakeProtocolTransaction(
     const stakingContract = new Contract(STAKING_CONTRACT_ID);
 
     const amountStroops = BigInt(Math.floor(validatedAmount * 10_000_000));
-    const addressScVal = new Address(validatedPublicKey).toScVal();
 
     const callOperation = stakingContract.call(
       "stake",
-      addressScVal,
-      nativeToScVal(amountStroops, { type: "i128" }),
+      encodeAddress(validatedPublicKey),
+      encodeAmount(amountStroops),
     );
 
     const builtTx = new TransactionBuilder(account, {
@@ -238,14 +239,11 @@ export async function buildSubmitChoiceTransaction(
 
     const account = await getAccount(validatedPublicKey, FN);
     const poolContract = new Contract(validatedPoolId);
-    const choiceVal = xdr.ScVal.scvSymbol(
-      validatedChoice === "Heads" ? "Heads" : "Tails",
-    );
 
     const callOperation = poolContract.call(
       "submit_choice",
-      nativeToScVal(validatedRoundNumber, { type: "u32" }),
-      choiceVal,
+      encodeRound(validatedRoundNumber),
+      encodeChoice(validatedChoice),
     );
 
     return new TransactionBuilder(account, {
@@ -408,7 +406,7 @@ export async function fetchArenaState(
     if (validatedUserAddress) {
       const userStateOperation = arenaContract.call(
         "get_user_state",
-        new Address(validatedUserAddress).toScVal()
+        encodeAddress(validatedUserAddress),
       );
 
       const userStateTx = new TransactionBuilder(dummyAccount, {
