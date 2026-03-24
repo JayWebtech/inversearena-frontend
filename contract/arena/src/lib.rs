@@ -406,3 +406,6 @@ fn bump(env: &Env, key: &DataKey) {
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod integration_tests;
