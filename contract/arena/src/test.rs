@@ -370,6 +370,22 @@ fn data_model_doc_covers_required_sections() {
     assert!(doc.contains("No custom Soroban storage keys are currently defined or used."));
 }
 
+#[test]
+fn architecture_doc_covers_required_sections() {
+    let doc = include_str!("../../ARCHITECTURE.md");
+
+    assert!(doc.contains("# Inverse Arena Contract Architecture"));
+    assert!(doc.contains("## Contract Inventory"));
+    assert!(doc.contains("## Inter-Contract Call Diagram"));
+    assert!(doc.contains("## Trust Boundaries"));
+    assert!(doc.contains("## Ownership And Upgrade Authority"));
+    assert!(doc.contains("```mermaid"));
+    assert!(doc.contains("Factory"));
+    assert!(doc.contains("Arena"));
+    assert!(doc.contains("Staking"));
+    assert!(doc.contains("Payout"));
+}
+
 // ── TTL survival test ─────────────────────────────────────────────────────────
 
 #[test]
