@@ -292,11 +292,7 @@ impl ArenaContract {
         if count >= effective_cap {
             return Err(ArenaError::ArenaFull);
         }
-        let token: Address = env
-            .storage()
-            .instance()
-            .get(&TOKEN_KEY)
-            .ok_or(ArenaError::TokenNotSet)?;
+        let token: Option<Address> = env.storage().instance().get(&TOKEN_KEY);
         // CEI: effects before interaction
         storage(&env).set(&survivor_key, &());
         bump(&env, &survivor_key);
@@ -311,11 +307,14 @@ impl ArenaContract {
         env.storage()
             .instance()
             .set(&PRIZE_POOL_KEY, &(pool + amount));
-        token::Client::new(&env, &token).transfer(
-            &player,
-            &env.current_contract_address(),
-            &amount,
-        );
+        // Only pull tokens if a token contract is configured
+        if let Some(token_addr) = token {
+            token::Client::new(&env, &token_addr).transfer(
+                &player,
+                &env.current_contract_address(),
+                &amount,
+            );
+        }
         Ok(())
     }
 
@@ -464,8 +463,9 @@ impl ArenaContract {
             });
         let prize_pool: i128 = env.storage().instance().get(&PRIZE_POOL_KEY).unwrap_or(0);
         let max_capacity: u32 = env.storage().instance().get(&CAPACITY_KEY).unwrap_or(0);
+        let survivors_count: u32 = env.storage().instance().get(&SURVIVOR_COUNT_KEY).unwrap_or(0);
         Ok(ArenaStateView {
-            survivors_count: round.total_submissions,
+            survivors_count,
             max_capacity,
             round_number: round.round_number,
             current_stake: prize_pool,
@@ -480,6 +480,8 @@ impl ArenaContract {
     }
 
     pub fn get_full_state(env: Env, player: Address) -> Result<FullStateView, ArenaError> {
+        // Require initialization — callers must call init() first
+        get_round(&env)?;
         let arena_state = Self::get_arena_state(env.clone())?;
         let user_state = Self::get_user_state(env, player);
         Ok(FullStateView {
